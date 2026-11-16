@@ -27,17 +27,17 @@ import {
   FolderOpen,
   ChevronLeft,
   ChevronRight,
-  FileImage,
-  Calendar,
-  ArrowUpDown
+  FileImage
 } from "lucide-react";
 
-const API_URL = "http://localhost:5000/api";
+// PRODUCTION API CONFIGURATION
+const API_URL = import.meta.env.VITE_API_URL;
+
 const PAGE_SIZE = 10;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 function App() {
-  // Application navigation
+  // Navigation
   const [activeTab, setActiveTab] = useState("Dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -59,7 +59,7 @@ function App() {
   const [viewMode, setViewMode] = useState("grid");
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Image viewer and deletion
+  // Image viewer
   const [selectedImage, setSelectedImage] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
@@ -69,17 +69,18 @@ function App() {
 
   const fileInputRef = useRef(null);
 
-  // Backend connection
+  // CHECK BACKEND CONNECTION
   const checkBackend = async () => {
     try {
-      const response = await axios.get(`${API_URL}/health`);
-      setBackendStatus(response.data.message || "Connected");
+      await axios.get(`${API_URL}/images`);
+
+      setBackendStatus("Connected");
     } catch {
       setBackendStatus("Backend disconnected");
     }
   };
 
-  // Fetch images
+  // FETCH IMAGES
   const fetchImages = async () => {
     try {
       setLoadingImages(true);
@@ -88,7 +89,11 @@ function App() {
       const response = await axios.get(`${API_URL}/images`);
 
       setImages(response.data.images || []);
+
+      setBackendStatus("Connected");
     } catch (err) {
+      setBackendStatus("Backend disconnected");
+
       setError(
         err.response?.data?.message || "Unable to fetch images."
       );
@@ -97,12 +102,13 @@ function App() {
     }
   };
 
+  // INITIAL LOAD
   useEffect(() => {
     checkBackend();
     fetchImages();
   }, []);
 
-  // Keyboard shortcuts
+  // KEYBOARD SHORTCUTS
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
@@ -111,10 +117,14 @@ function App() {
 
       if (
         event.key === "/" &&
-        !["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)
+        !["INPUT", "TEXTAREA"].includes(
+          document.activeElement?.tagName
+        )
       ) {
         event.preventDefault();
+
         setActiveTab("My Images");
+
         setTimeout(() => {
           document.getElementById("image-search")?.focus();
         }, 100);
@@ -128,7 +138,7 @@ function App() {
     };
   }, []);
 
-  // Cleanup preview URL
+  // CLEANUP PREVIEW URL
   useEffect(() => {
     return () => {
       if (preview) {
@@ -137,7 +147,7 @@ function App() {
     };
   }, [preview]);
 
-  // Notifications
+  // NOTIFICATIONS
   const showMessage = (text) => {
     setError("");
     setMessage(text);
@@ -148,7 +158,7 @@ function App() {
     setError(text);
   };
 
-  // File size formatting
+  // FILE SIZE FORMAT
   const formatSize = (bytes = 0) => {
     if (!bytes) return "0 KB";
 
@@ -159,7 +169,7 @@ function App() {
     return (bytes / 1024).toFixed(2) + " KB";
   };
 
-  // Date formatting
+  // DATE FORMAT
   const formatDate = (date) => {
     if (!date) return "Recently uploaded";
 
@@ -176,7 +186,7 @@ function App() {
     });
   };
 
-  // Select image for preview
+  // SELECT FILE
   const selectFile = (file) => {
     if (!file) return;
 
@@ -203,6 +213,7 @@ function App() {
 
     setMessage("");
     setError("");
+
     setSelectedFile(file);
     setPreview(URL.createObjectURL(file));
 
@@ -211,23 +222,21 @@ function App() {
     }
   };
 
-  // File input handler
+  // FILE INPUT
   const handleFileChange = (event) => {
     selectFile(event.target.files[0]);
   };
 
-  // Drag and drop handler
+  // DRAG AND DROP
   const handleDrop = (event) => {
     event.preventDefault();
 
     if (uploading) return;
 
-    const file = event.dataTransfer.files[0];
-
-    selectFile(file);
+    selectFile(event.dataTransfer.files[0]);
   };
 
-  // Cancel preview
+  // CANCEL PREVIEW
   const cancelPreview = () => {
     setSelectedFile(null);
     setPreview(null);
@@ -237,7 +246,7 @@ function App() {
     }
   };
 
-  // Upload image to ImageKit through backend
+  // UPLOAD IMAGE
   const uploadImage = async () => {
     if (!selectedFile || uploading) return;
 
@@ -258,7 +267,9 @@ function App() {
           onUploadProgress: (event) => {
             if (event.total) {
               setUploadProgress(
-                Math.round((event.loaded * 100) / event.total)
+                Math.round(
+                  (event.loaded * 100) / event.total
+                )
               );
             }
           }
@@ -280,7 +291,8 @@ function App() {
 
     } catch (err) {
       showError(
-        err.response?.data?.message || "Image upload failed."
+        err.response?.data?.message ||
+        "Image upload failed. Please try again."
       );
     } finally {
       setUploading(false);
@@ -288,7 +300,7 @@ function App() {
     }
   };
 
-  // Delete image
+  // DELETE IMAGE
   const deleteImage = async (id) => {
     const confirmed = window.confirm(
       "Are you sure you want to permanently delete this image?"
@@ -315,24 +327,26 @@ function App() {
 
     } catch (err) {
       showError(
-        err.response?.data?.message || "Unable to delete image."
+        err.response?.data?.message ||
+        "Unable to delete image."
       );
     } finally {
       setDeletingId(null);
     }
   };
 
-  // Copy URL
+  // COPY IMAGE URL
   const copyImageUrl = async (url) => {
     try {
       await navigator.clipboard.writeText(url);
+
       showMessage("Image URL copied successfully!");
     } catch {
       showError("Unable to copy image URL.");
     }
   };
 
-  // Download image
+  // DOWNLOAD IMAGE
   const downloadImage = async (image) => {
     try {
       const response = await fetch(image.imageUrl);
@@ -342,13 +356,16 @@ function App() {
       }
 
       const blob = await response.blob();
+
       const url = URL.createObjectURL(blob);
 
       const link = document.createElement("a");
 
       link.href = url;
       link.download = image.name || "image";
+
       document.body.appendChild(link);
+
       link.click();
       link.remove();
 
@@ -361,7 +378,7 @@ function App() {
     }
   };
 
-  // Search, filter and sorting
+  // SEARCH, FILTER AND SORT
   const filteredImages = useMemo(() => {
     let result = images.filter((image) => {
       const name = (image.name || "").toLowerCase();
@@ -395,7 +412,7 @@ function App() {
     return result;
   }, [images, search, filter, sort]);
 
-  // Pagination
+  // PAGINATION
   const totalPages = Math.max(
     1,
     Math.ceil(filteredImages.length / PAGE_SIZE)
@@ -416,7 +433,7 @@ function App() {
     }
   }, [currentPage, totalPages]);
 
-  // Dashboard statistics
+  // DASHBOARD STATISTICS
   const totalStorage = images.reduce(
     (total, image) => total + (image.size || 0),
     0
@@ -427,14 +444,12 @@ function App() {
     : 0;
 
   const imageTypes = new Set(
-    images.map((image) => {
-      const extension = (image.name || "")
+    images.map((image) =>
+      (image.name || "")
         .split(".")
         .pop()
-        .toUpperCase();
-
-      return extension;
-    })
+        .toUpperCase()
+    )
   ).size;
 
   const isConnected =
@@ -584,7 +599,7 @@ function App() {
           </div>
         </header>
 
-        {/* GLOBAL FILE INPUT */}
+        {/* FILE INPUT */}
         <input
           ref={fileInputRef}
           type="file"
@@ -594,7 +609,7 @@ function App() {
           onChange={handleFileChange}
         />
 
-        {/* SUCCESS NOTIFICATION */}
+        {/* SUCCESS MESSAGE */}
         {message && (
           <div className="mb-5 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-2">
             <CheckCircle size={18} />
@@ -610,7 +625,7 @@ function App() {
           </div>
         )}
 
-        {/* ERROR NOTIFICATION */}
+        {/* ERROR MESSAGE */}
         {error && (
           <div className="mb-5 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 flex items-center gap-2">
             <AlertCircle size={18} />
@@ -626,7 +641,7 @@ function App() {
           </div>
         )}
 
-        {/* SELECTED IMAGE PREVIEW */}
+        {/* IMAGE PREVIEW */}
         {preview && (
           <section className="mb-7 bg-[#111b2b] border border-emerald-500/30 rounded-2xl p-6">
             <h2 className="text-lg font-bold mb-4">
@@ -713,7 +728,6 @@ function App() {
                 <h2 className="text-3xl md:text-4xl font-bold mt-4 mb-3">
                   Every image.
                   <br />
-
                   <span className="text-emerald-400">
                     One beautiful space.
                   </span>
@@ -1053,10 +1067,7 @@ function App() {
                 Storage information
               </h3>
 
-              <SettingRow
-                title="Total images"
-                value={images.length}
-              />
+              <SettingRow title="Total images" value={images.length} />
 
               <SettingRow
                 title="Total storage"
@@ -1106,7 +1117,8 @@ function App() {
                   {formatSize(selectedImage.size)}
                   {" · "}
                   {formatDate(
-                    selectedImage.createdAt || selectedImage.updatedAt
+                    selectedImage.createdAt ||
+                    selectedImage.updatedAt
                   )}
                 </p>
               </div>
